@@ -67,5 +67,5 @@
 
 ## Список источников
 
-1. [Пресс-релиз яндекса от 22.12.2025](https://yandex.ru/company/news/22-12-2025-04)
-2. [Документация Яндекс.Телемоста](https://yandex.ru/support/yandex-360/customers/telemost/web/ru/))
+1. [Пресс-релиз Яндекса от 22.12.2025](https://yandex.ru/company/news/22-12-2025-04)
+2. [Документация Яндекс.Телемоста](https://yandex.ru/support/yandex-360/customers/telemost/web/ru/)
