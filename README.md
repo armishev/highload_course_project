@@ -339,11 +339,11 @@ $$
   При $DAU = 1$ млн и $N_{day} \approx 1.33$ встречи на пользователя в сутки число входов в день:
 
 $$  
-J_{day} = DAU \cdot N_{day} = 1{,}000{,}000 \cdot 1.33 = 1{,}330{,}000 \text{ входов/сутки}  
+J_{day} = DAU \cdot N_{day} = 1{,}000{,}000 \cdot 1.66 = 2{,}660{,}000 \text{ входов/сутки}  
 $$
 
 $$  
-RPS_{auth,avg} = \frac{J_{day}}{86400} \approx 15.4 \approx 15 \text{ RPS}  
+RPS_{auth,avg} = \frac{J_{day}}{86400} \approx 30.8 \approx 30 \text{ RPS}  
 $$
 
 ---
@@ -369,7 +369,7 @@ $$
 | Heartbeat/Keepalive | 0.03                 | 1287   | 3861          |
 | Chat API            | 0.00133             | 57     | 171           |
 | Meeting control     | 0.00625             | 268    | 804           |
-| Auth/Join           | —                   | 15     | 45            |
+| Auth/Join           | —                   | 30     | 90            |
 | **Итого**           | —                   | **1627** | **4881**    |
 
 
