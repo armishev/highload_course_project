@@ -67,7 +67,7 @@
 | Среднее кол-во участников встречи              | 5                | Zoom Blog [[14](#список-источников)]               |
 | Доля записываемых встреч                       | 5 %              | [[13](#список-источников)]                         |
 | Разрешение записи                              | 720p (HD)        | Zoom Support [[15](#список-источников)]            |
-| Битрейт записи (видео + аудио)                 | 1.88 Мбит/с      | Zoom Support [[9](#список-источников)]             |
+| Битрейт записи (видео + аудио)                 | 1.60 Мбит/с (измерено по файлу облачной записи) | Zoom Developer Forum [[17](#список-источников)] |
 | Разрешение встречи          | 720p (HD)        | Zoom Technical Library [[16](#список-источников)]  |
 | Битрейт live: uplink / downlink                | 2.6 / 1.8 Мбит/с | Zoom Technical Library [[16](#список-источников)]  |
 | Аудио VoIP                                     | 60–80 Кбит/с     | Zoom Technical Library [[16](#список-источников)]  |
@@ -173,24 +173,24 @@ H_{\text{rec/day}}=H_{\text{session/day}}\cdot 0.05 \approx 10300 \text{ час/
 $$
 
 Для размера записи используем **HD (720p)** — стандартное разрешение облачных записей видеоконференций. Согласно официальной документации Zoom, облачные записи сохраняются с максимальным разрешением 1280 × 720p для большинства сценариев [[15](#список-источников)].  
-Примем суммарный битрейт записи: видео 1.8 Мбит/с + аудио 0.08 Мбит/с: [[9](#список-источников)]
+Битрейт *файла* облачной записи в официальной документации Zoom не указан; на Zoom Developer Forum пользователь привёл измерение реального файла облачной записи (QuickTime: 720p, **1.60 Мбит/с**) [[17](#список-источников)]. Используем это значение:
 
 $$  
-B_{\text{rec}}=1.88\text{ Мбит/с}  
+B_{\text{rec}}=1.60\text{ Мбит/с}  
 $$
 
 Размер 1 часа записи:
 
 $$  
 S_{1h}=\frac{B_{\text{rec}}\cdot 3600}{8}  
-=\frac{1.88\cdot 3600}{8}\approx 846\text{ МБ/час}\approx 0.846\text{ ГБ/час}  
+=\frac{1.60\cdot 3600}{8}\approx 720\text{ МБ/час}\approx 0.72\text{ ГБ/час}  
 $$
 
 Объём новых записей в сутки:
 
 $$  
 S_{\text{rec/day}}=H_{\text{rec/day}}\cdot S_{1h}  
-\approx 10300\cdot 0.846 \approx 8714\text{ ГБ/день}\approx 8.7\text{ ТБ/день}  
+\approx 10300\cdot 0.72 \approx 7416\text{ ГБ/день}\approx 7.4\text{ ТБ/день}  
 $$
 
 $$  
@@ -200,7 +200,7 @@ $$
 Для оценки возьмём 1 год:
 
 $$  
-S_{\text{rec/year}}\approx 8.7\cdot 365 \approx 3176\text{ ТБ}  
+S_{\text{rec/year}}\approx 7.4\cdot 365 \approx 2701\text{ ТБ}  
 $$
 
 Оценка количества файлов записей (если средняя встреча 45 минут [[7](#список-источников)] = 0.75 часа):  
@@ -249,7 +249,7 @@ $$
 | Объект хранения             | Размер, шт (оценка)    | Размер, Тб |
 | --------------------------- | ---------------------- | ---------- |
 | Пользовательские метаданные | 5.15 млн пользователей | 0.63       |
-| Записи встреч               | ~5.01 млн файлов       | 3176       |
+| Записи встреч               | ~5.01 млн файлов       | 2701       |
 | Расшифровки/конспекты       | ~10.0 млн документов   | 0.96       |
 
 
@@ -418,6 +418,7 @@ $$
 14. [Среднее кол-во участников во встрече](https://www.zoom.com/en/blog/how-you-used-zoom-2022/?utm_source=chatgpt.com)
 15. [Zoom Support: Resolution of recorded video (облачные записи — максимум 720p для 2+ участников)](https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0066421)
 16. [Zoom Technical Library: Calculating Bandwidth Usage for Zoom Meetings and Phone (720p HD — стандарт для групповых встреч: upload 2.6 Мбит/с, download 1.8 Мбит/с)](https://library.zoom.com/admin-corner/network-management/quality-of-service-and-network-best-practices-explainer/calculating-bandwidth-usage-for-zoom-meetings-and-phone)
+17. [Zoom Developer Forum: измерение файла облачной записи — 720p, 1.60 Мбит/с (QuickTime)](https://devforum.zoom.us/t/are-cloud-recordings-playable-if-hosted-from-a-website/5824/6)
 18. [Microsoft Research — The Promise and Peril of Parallel Chat in Video Meetings (CHI 2021): 85.7% участников считают чат полезным](https://www.microsoft.com/en-us/research/publication/the-promise-and-peril-of-parallel-chat-in-video-meetings-for-work/)
 19. [Microsoft Work Trend Index 2022: количество чат-сообщений на человека в неделю выросло на 32%](https://news.microsoft.com/2022/03/16/microsoft-announces-new-research-and-technology-to-make-hybrid-work-work/)
 20. [Zoom User Survey: 71% сказали «you're on mute», 63% предпочитают камеру включённой](https://zoom.com/en/resources/zoom-user-survey/)
