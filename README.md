@@ -730,12 +730,24 @@ erDiagram
     recordings ||--|| recording_blobs : "ссылается"
     transcripts ||--|| transcript_blobs : "ссылается"
 
-    users { uuid user_id PK }
-    meetings { uuid meeting_id PK }
-    meeting_participants { uuid id PK }
-    chat_messages { uuid message_id PK }
-    recordings { uuid recording_id PK }
-    transcripts { uuid transcript_id PK }
+    users {
+        uuid user_id PK
+    }
+    meetings {
+        uuid meeting_id PK
+    }
+    meeting_participants {
+        uuid id PK
+    }
+    chat_messages {
+        uuid message_id PK
+    }
+    recordings {
+        uuid recording_id PK
+    }
+    transcripts {
+        uuid transcript_id PK
+    }
 ```
 
 ## Индексы
@@ -1183,7 +1195,7 @@ flowchart TD
     SIG -->|"3. адрес SFU"| C
     C -.->|"медиа SRTP/UDP"| SFU
     C -.->|"relay при NAT"| TURN
-    TURN --> SFU
+    TURN -.-> SFU
     API --> PG
     API --> RD
     SIG --> RD
