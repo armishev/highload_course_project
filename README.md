@@ -482,38 +482,9 @@ Media plane и сигналинг размещаются в 4 edge-POP близ�
 
 ## Схема DNS-балансировки
 
-```mermaid
-flowchart TD
-    U["Клиент (Web / iOS / Android)"]
-    R["Рекурсивный DNS-резолвер<br/>(+EDNS Client Subnet)"]
-    G["PowerDNS, LUA records<br/>(authoritative, GSLB, МСК + СПб)"]
-    CDN["Yandex Cloud CDN<br/>(static, VOD-записи)"]
+![Схема DNS-балансировки](pictures/gslb-dns.png)
 
-    subgraph POP["Ближайший POP"]
-        VIP["Вход в POP<br/>L4 IPVS → L7 nginx"]
-        WS["ws.telemost.ru<br/>(Signaling)"]
-        SFU["SFU-ноды (медиаслой)"]
-    end
-
-    subgraph MSK["МСК (control plane)"]
-        VIPM["Вход в МСК<br/>L4 IPVS → L7 nginx"]
-        API["api.telemost.ru<br/>(Control API)"]
-        O["Оркестратор<br/>(Application Based LB, least load)"]
-    end
-
-    U -->|"1. DNS-запрос"| R
-    R --> G
-    G -.->|"2. ws → IP ближайшего POP, api → IP МСК"| U
-    U -->|"3. WSS на вход POP"| VIP
-    U -->|"3. HTTPS на вход МСК"| VIPM
-    VIPM --> API
-    VIP --> WS
-    WS -->|"4. запрос на медиа"| O
-    O -->|"5. SFU по загрузке"| WS
-    WS -->|"6. IP:port SFU клиенту"| U
-    U -.->|"7. медиа SRTP/UDP напрямую"| SFU
-    U -->|"static / VOD"| CDN
-```
+Исходник схемы в mermaid: [resources/gslb-dns.md](resources/gslb-dns.md)
 
 Geo-based DNS не маршрутизирует трафик, а возвращает клиенту A record (IP): для `ws` и `turn` вход ближайшего живого POP через `pickclosest`, для `api` вход МСК, а при его недоступности СПб через `ifurlup`, для `static` и VOD адрес CDN [[48]](#список-источников). Дальше клиент сам идёт на этот вход (L4 → L7 nginx). TTL ставим 60 секунд, health-check каждые 15 секунд (TCP плюс `GET /health`). Два authoritative-сервера стоят в МСК и СПб. Медиа через DNS не проходит: сигнальный сервис запрашивает у оркестратора SFU-нод и возвращает его адрес клиенту, после чего SRTP/UDP идёт напрямую между клиентом и SFU.
 
@@ -554,32 +525,9 @@ Anycast не используется: при перескоке трафика 
 
 Резервирование по схеме **N+1** (`N_total = N_work + 1`): N узлов держат нагрузку, один горячий резерв принимает её при отказе любого. Схема N×2 даёт больший запас, но для нашей нагрузки на L7 избыточна.
 
-```mermaid
-flowchart TD
-    C["Клиенты (Web / iOS / Android)"]
+![Схема локальной балансировки в POP](pictures/local-balancing.png)
 
-    subgraph POP["POP (один из четырёх)"]
-        VIP["VIP · пара L4 IPVS (keepalived, VRRP)<br/>health-check"]
-        subgraph L7P["L7-пул nginx (N+1)"]
-            L7A["L7-1 (рабочий)"]
-            L7R["L7-2 (резерв)"]
-        end
-        API["api.telemost.ru<br/>Control API"]
-        WS["ws.telemost.ru<br/>Signaling"]
-        SFU["SFU-ноды (медиа)"]
-        TURN["TURN-relay"]
-    end
-    CDN["CDN (static, VOD)"]
-
-    C -->|"HTTPS / WSS"| VIP
-    VIP -->|"IPVS"| L7A
-    VIP -. "failover" .-> L7R
-    L7A --> API
-    L7A --> WS
-    C -. "SRTP/UDP напрямую, в обход L4/L7" .-> SFU
-    C -. "relay при NAT" .-> TURN
-    C -->|"static / записи"| CDN
-```
+Исходник схемы в mermaid: [resources/local-balancing.md](resources/local-balancing.md)
 
 > **Почему медиа идёт в обход L4/L7:** через балансировщики идёт только сигналинг и REST. Медиапоток (587.1 Гбит/с в пике) течёт напрямую клиент↔SFU по UDP, а SFU выбирает оркестратор (см. предыдущий раздел). Прогонять такой объём через L7 нецелесообразно, плюс TLS termination к UDP-медиа неприменим. Поэтому пропускная способность сети не является лимитером L7, она приходится на SFU и TURN.
 
@@ -737,102 +685,9 @@ flowchart TD
 
 ## ER-диаграмма
 
-```mermaid
-erDiagram
-    users ||--o{ user_sessions : "имеет"
-    users ||--o{ meetings : "владеет"
-    users ||--o{ meeting_invitees : "приглашён (nullable)"
-    users ||--o{ meeting_participants : "участвует (nullable, гость)"
-    users ||--o{ chat_messages : "отправляет (nullable, гость)"
-    meetings ||--o{ meeting_invitees : "приглашает"
-    meetings ||--o{ meeting_participants : "включает"
-    meetings ||--o{ chat_messages : "содержит"
-    meetings ||--o{ recordings : "порождает"
-    meetings ||--o{ transcripts : "порождает"
-    recordings ||--|| recording_blobs : "ссылается"
-    transcripts ||--|| transcript_blobs : "ссылается"
+![Логическая ER-диаграмма](pictures/logical-database.png)
 
-    users {
-        uuid user_id PK
-        varchar email UK
-        varchar phone UK
-        varchar display_name
-        varchar avatar_url
-        jsonb settings_json
-        timestamp created_at
-        timestamp updated_at
-    }
-    user_sessions {
-        uuid session_id PK
-        uuid user_id FK
-        varchar device_id
-        varchar push_token
-        varchar user_agent
-        varchar ip
-        timestamp created_at
-        timestamp expires_at
-    }
-    meetings {
-        uuid meeting_id PK
-        uuid owner_id FK "nullable, гостевая встреча"
-        varchar join_code UK
-        enum type "instant / scheduled"
-        varchar title
-        timestamp scheduled_start
-        enum status
-        jsonb settings_json "lock, зал ожидания, запись"
-        timestamp created_at
-    }
-    meeting_invitees {
-        uuid id PK
-        uuid meeting_id FK
-        uuid user_id FK "nullable"
-        varchar email "nullable, внешний приглашённый"
-        enum status "invited / accepted"
-    }
-    meeting_participants {
-        uuid id PK
-        uuid meeting_id FK
-        uuid user_id FK "nullable, гость"
-        varchar display_name "для гостя"
-        enum role "host / cohost / participant"
-        timestamp joined_at
-        timestamp left_at
-        varchar device
-    }
-    chat_messages {
-        uuid message_id PK
-        uuid meeting_id FK
-        uuid sender_id FK "nullable, гость"
-        varchar text
-        timestamp created_at
-    }
-    recordings {
-        uuid recording_id PK
-        uuid meeting_id FK
-        varchar storage_url
-        int duration_s
-        bigint size_bytes
-        enum resolution
-        enum status
-        timestamp created_at
-    }
-    transcripts {
-        uuid transcript_id PK
-        uuid meeting_id FK
-        varchar storage_url
-        varchar lang
-        timestamp created_at
-    }
-    recording_blobs {
-        varchar object_key PK
-        bigint size_bytes
-    }
-    transcript_blobs {
-        varchar object_key PK
-        bigint size_bytes
-    }
-```
+Исходник схемы в mermaid: [resources/logical-database.md](resources/logical-database.md)
 
 ## Индексы
 
@@ -1008,48 +863,9 @@ QPS привязаны к разбивке RPS из раздела «Расчё�
 
 ## Физическая ER-схема
 
-```mermaid
-flowchart TB
-    subgraph PG["PostgreSQL · Patroni: primary + sync standby МСК, async standby СПб · без шардинга"]
-        T1["users<br/>user_id, email, phone, display_name,<br/>avatar_url, settings_json, created_at, updated_at<br/>PK user_id · UQ email · UQ phone"]
-        T2["user_sessions<br/>session_id, user_id, device_id, push_token,<br/>user_agent, ip, created_at, expires_at<br/>PK session_id · idx user_id · idx expires_at"]
-        T3["meetings<br/>meeting_id, owner_id, join_code, type, title,<br/>scheduled_start, status, settings_json, created_at<br/>+ participant_count, has_recording, has_transcript<br/>PK meeting_id · UQ join_code · без партиций"]
-        T4["meeting_invitees<br/>id, meeting_id, user_id, email, status<br/>PK id · idx meeting_id · idx user_id"]
-        T5["meeting_participants<br/>id, meeting_id, user_id, display_name,<br/>role, joined_at, left_at, device<br/>PK (id, joined_at) · idx meeting_id<br/>idx (user_id, joined_at DESC)<br/>партиции RANGE(joined_at) по месяцам"]
-        T6["chat_messages<br/>message_id, meeting_id, sender_id,<br/>text, created_at<br/>PK (message_id, created_at)<br/>idx (meeting_id, created_at)<br/>партиции RANGE(created_at) по месяцам"]
-        T7["recordings / transcripts<br/>id, meeting_id, storage_url, duration_s,<br/>size_bytes, resolution, status, lang, created_at<br/>PK id · idx meeting_id"]
-        T1 ~~~ T5
-        T2 ~~~ T6
-        T3 ~~~ T7
-    end
-    subgraph OS["Ceph RGW S3 · EC 8+3 · 22 OSD · lifecycle 12 мес"]
-        O1["recording_blobs<br/>bucket recordings · ~2701 ТБ/год"]
-        O2["transcript_blobs<br/>bucket transcripts · ~0.96 ТБ/год"]
-        O3["avatars<br/>bucket avatars · origin для CDN"]
-    end
-    subgraph RD["Redis Cluster МСК · 3 master + 3 replica · слоты по ключу"]
-        R1["live_meeting_state<br/>hash meeting:id:state<br/>TTL встречи"]
-        R2["participant_routing<br/>key participant:id<br/>TTL присутствия"]
-        R3["meeting_allocation<br/>hash meeting:id:alloc<br/>TTL встречи"]
-    end
-    subgraph KF["Kafka · 3 broker · RF=3 · min.insync.replicas=2 · partition by meeting_id · retention 3 дня"]
-        K1["recording_jobs<br/>transcription_jobs"]
-        K2["qos_ingest<br/>meeting_events"]
-    end
-    subgraph CH["ClickHouse · 2 shard × 2 replica · Keeper на 3 площадках"]
-        C1["media_qos_events<br/>ORDER BY (meeting_id, ts)<br/>PARTITION BY toYYYYMMDD(ts) · шард по meeting_id"]
-    end
+![Физическая схема БД](pictures/physical-database.png)
 
-    T7 -. "storage_url" .-> O1
-    T7 -. "storage_url" .-> O2
-    T6 ~~~ O3
-    O1 ~~~ R1
-    O2 ~~~ R2
-    O3 ~~~ R3
-    R1 ~~~ K1
-    R2 ~~~ K2
-    K2 -. "ingest" .-> C1
-```
+Исходник схемы в mermaid: [resources/physical-database.md](resources/physical-database.md)
 
 ---
 
@@ -1253,74 +1069,9 @@ flowchart TB
 
 ## Полная архитектура
 
-```mermaid
-flowchart TD
-    C["Клиенты (Web / iOS / Android)"]
-    DNS["PowerDNS, LUA records (GSLB)<br/>МСК + СПб"]
+![Полная архитектура проекта](pictures/project-scheme.png)
 
-    subgraph EDGE["Вход в POP — внешняя балансировка"]
-        L4["L4 IPVS + keepalived (пара, VRRP)"]
-        L7["L7 nginx (N+1)"]
-    end
-
-    subgraph APP["Приложение — Kubernetes, внутренняя балансировка"]
-        SIG["Signaling (WebSocket)<br/>в каждом POP"]
-        API["Control API<br/>только МСК"]
-        ORC["Оркестратор<br/>только МСК"]
-    end
-
-    subgraph MEDIA["Медиаслой (в каждом POP)"]
-        SFU["SFU-узлы (simulcast)"]
-        SFU2["SFU другого POP"]
-        TURN["TURN (coturn)"]
-    end
-
-    subgraph WORK["Фоновые воркеры"]
-        REC["Recording (ffmpeg)"]
-        ASR["ASR (SpeechKit)"]
-    end
-
-    subgraph DATA["Данные — МСК (PostgreSQL standby в СПб)"]
-        PG[("PostgreSQL")]
-        RD[("Redis Cluster")]
-        CH[("ClickHouse")]
-        OS[("Ceph S3")]
-    end
-
-    KAFKA["Kafka — события и задания (МСК)"]
-    CDN["Yandex Cloud CDN"]
-
-    C -->|"1. резолв: ws и turn → ближайший POP, api → МСК"| DNS
-    C -->|"2. HTTPS / WSS"| L4
-    L4 --> L7
-    L7 --> API
-    L7 --> SIG
-    SIG --> ORC
-    ORC -->|"выбор SFU по загрузке"| RD
-    SIG -->|"3. адрес SFU"| C
-    API --> PG
-    API --> RD
-    SIG --> RD
-
-    C -.->|"медиа SRTP/UDP (основной путь)"| SFU
-    C -.->|"fallback при NAT/firewall"| TURN
-    TURN -.-> SFU
-    SFU <-.->|"каскад: один поток на публикатора между POP"| SFU2
-
-    SFU -.->|"медиапоток"| REC
-    REC -.->|"файл записи"| OS
-    REC -.->|"метаданные"| PG
-    REC -.->|"recording_finished"| KAFKA
-    KAFKA -.->|"transcription_job"| ASR
-    OS -.->|"аудио записи"| ASR
-    ASR -.->|"расшифровка"| OS
-
-    SFU -.->|"QoS-события"| KAFKA
-    KAFKA -.->|"qos"| CH
-
-    C -->|"static / VOD"| CDN
-    OS -.->|"origin записей"| CDN
-```
+Исходник схемы в mermaid: [resources/project-scheme.md](resources/project-scheme.md)
 
 ## Обозначения стрелок
 
