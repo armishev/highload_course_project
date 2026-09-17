@@ -1009,36 +1009,45 @@ QPS привязаны к разбивке RPS из раздела «Расчё�
 ## Физическая ER-схема
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph PG["PostgreSQL · Patroni: primary + sync standby МСК, async standby СПб · без шардинга"]
-        T1["users<br/>user_id, email, phone, display_name, avatar_url, settings_json<br/>PK user_id · UQ email · UQ phone"]
-        T2["user_sessions<br/>session_id, user_id, device_id, push_token, expires_at<br/>PK session_id · idx user_id · idx expires_at"]
-        T3["meetings<br/>meeting_id, owner_id, join_code, type, title, scheduled_start, status, settings_json<br/>+ participant_count, has_recording, has_transcript (денормализация)<br/>PK meeting_id · UQ join_code · без партиций"]
+        T1["users<br/>user_id, email, phone, display_name,<br/>avatar_url, settings_json, created_at, updated_at<br/>PK user_id · UQ email · UQ phone"]
+        T2["user_sessions<br/>session_id, user_id, device_id, push_token,<br/>user_agent, ip, created_at, expires_at<br/>PK session_id · idx user_id · idx expires_at"]
+        T3["meetings<br/>meeting_id, owner_id, join_code, type, title,<br/>scheduled_start, status, settings_json, created_at<br/>+ participant_count, has_recording, has_transcript<br/>PK meeting_id · UQ join_code · без партиций"]
         T4["meeting_invitees<br/>id, meeting_id, user_id, email, status<br/>PK id · idx meeting_id · idx user_id"]
-        T5["meeting_participants<br/>id, meeting_id, user_id, display_name, role, joined_at, left_at, device<br/>PK (id, joined_at) · idx meeting_id · idx (user_id, joined_at DESC)<br/>партиции RANGE(joined_at) по месяцам"]
-        T6["chat_messages<br/>message_id, meeting_id, sender_id, text, created_at<br/>PK (message_id, created_at) · idx (meeting_id, created_at)<br/>партиции RANGE(created_at) по месяцам"]
-        T7["recordings / transcripts<br/>id, meeting_id, storage_url, duration_s, size_bytes, status, lang<br/>PK id · idx meeting_id"]
+        T5["meeting_participants<br/>id, meeting_id, user_id, display_name,<br/>role, joined_at, left_at, device<br/>PK (id, joined_at) · idx meeting_id<br/>idx (user_id, joined_at DESC)<br/>партиции RANGE(joined_at) по месяцам"]
+        T6["chat_messages<br/>message_id, meeting_id, sender_id,<br/>text, created_at<br/>PK (message_id, created_at)<br/>idx (meeting_id, created_at)<br/>партиции RANGE(created_at) по месяцам"]
+        T7["recordings / transcripts<br/>id, meeting_id, storage_url, duration_s,<br/>size_bytes, resolution, status, lang, created_at<br/>PK id · idx meeting_id"]
+        T1 ~~~ T5
+        T2 ~~~ T6
+        T3 ~~~ T7
     end
-    subgraph RD["Redis Cluster МСК · 3 master + 3 replica · слоты по ключу"]
-        R1["live_meeting_state<br/>hash meeting:meeting_id:state · TTL встречи"]
-        R2["participant_routing<br/>key participant:participant_id · TTL присутствия"]
-        R3["meeting_allocation<br/>hash meeting:meeting_id:alloc · TTL встречи"]
-    end
-    subgraph CH["ClickHouse · 2 shard × 2 replica · Keeper на 3 площадках"]
-        C1["media_qos_events<br/>ORDER BY (meeting_id, ts) · PARTITION BY toYYYYMMDD(ts) · шард по meeting_id"]
-    end
-    subgraph OS["Ceph RGW S3 · EC 8+3 · 22 OSD"]
-        O1["recording_blobs ~2701 ТБ/год<br/>bucket recordings · lifecycle 12 мес"]
-        O2["transcript_blobs ~0.96 ТБ/год<br/>bucket transcripts · lifecycle 12 мес"]
+    subgraph OS["Ceph RGW S3 · EC 8+3 · 22 OSD · lifecycle 12 мес"]
+        O1["recording_blobs<br/>bucket recordings · ~2701 ТБ/год"]
+        O2["transcript_blobs<br/>bucket transcripts · ~0.96 ТБ/год"]
         O3["avatars<br/>bucket avatars · origin для CDN"]
     end
-    subgraph KF["Kafka · 3 broker · RF=3 · min.insync.replicas=2"]
-        K1["recording_jobs / transcription_jobs<br/>partition by meeting_id · retention 3 дня"]
-        K2["qos_ingest / meeting_events<br/>partition by meeting_id · retention 3 дня"]
+    subgraph RD["Redis Cluster МСК · 3 master + 3 replica · слоты по ключу"]
+        R1["live_meeting_state<br/>hash meeting:id:state<br/>TTL встречи"]
+        R2["participant_routing<br/>key participant:id<br/>TTL присутствия"]
+        R3["meeting_allocation<br/>hash meeting:id:alloc<br/>TTL встречи"]
+    end
+    subgraph KF["Kafka · 3 broker · RF=3 · min.insync.replicas=2 · partition by meeting_id · retention 3 дня"]
+        K1["recording_jobs<br/>transcription_jobs"]
+        K2["qos_ingest<br/>meeting_events"]
+    end
+    subgraph CH["ClickHouse · 2 shard × 2 replica · Keeper на 3 площадках"]
+        C1["media_qos_events<br/>ORDER BY (meeting_id, ts)<br/>PARTITION BY toYYYYMMDD(ts) · шард по meeting_id"]
     end
 
     T7 -. "storage_url" .-> O1
     T7 -. "storage_url" .-> O2
+    T6 ~~~ O3
+    O1 ~~~ R1
+    O2 ~~~ R2
+    O3 ~~~ R3
+    R1 ~~~ K1
+    R2 ~~~ K2
     K2 -. "ingest" .-> C1
 ```
 
