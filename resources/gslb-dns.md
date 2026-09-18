@@ -4,17 +4,17 @@
 flowchart TD
     U["Клиент (Web / iOS / Android)"]
     R["Рекурсивный DNS-резолвер<br/>(+EDNS Client Subnet)"]
-    G["PowerDNS, LUA records<br/>(authoritative, GSLB, МСК + СПб)"]
+    G["Geo-DNS на PowerDNS<br/>(МСК + СПб)"]
     CDN["Yandex Cloud CDN<br/>(static, VOD-записи)"]
 
     subgraph POP["Ближайший POP"]
-        VIP["Вход в POP<br/>L4 IPVS → L7 nginx"]
+        VIP["Вход в POP<br/>L4 → L7 nginx"]
         WS["ws.telemost.ru<br/>(Signaling)"]
         SFU["SFU-ноды (медиаслой)"]
     end
 
     subgraph MSK["МСК (control plane)"]
-        VIPM["Вход в МСК<br/>L4 IPVS → L7 nginx"]
+        VIPM["Вход в МСК<br/>L4 → L7 nginx"]
         API["api.telemost.ru<br/>(Control API)"]
         O["Оркестратор<br/>(Application Based LB, least load)"]
     end

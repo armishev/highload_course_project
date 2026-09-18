@@ -5,7 +5,7 @@ flowchart TD
     C["Клиенты (Web / iOS / Android)"]
 
     subgraph POP["POP (один из четырёх)"]
-        VIP["VIP · пара L4 IPVS (keepalived, VRRP)<br/>health-check"]
+        VIP["VIP · пара L4-узлов (keepalived)<br/>health-check"]
         subgraph L7P["L7-пул nginx (N+1)"]
             L7A["L7-1 (рабочий)"]
             L7R["L7-2 (резерв)"]
@@ -18,7 +18,7 @@ flowchart TD
     CDN["CDN (static, VOD)"]
 
     C -->|"HTTPS / WSS"| VIP
-    VIP -->|"IPVS"| L7A
+    VIP -->|"L4"| L7A
     VIP -. "failover" .-> L7R
     L7A --> API
     L7A --> WS

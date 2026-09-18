@@ -3,10 +3,10 @@
 ```mermaid
 flowchart TD
     C["Клиенты (Web / iOS / Android)"]
-    DNS["PowerDNS, LUA records (GSLB)<br/>МСК + СПб"]
+    DNS["Geo-DNS на PowerDNS<br/>МСК + СПб"]
 
     subgraph EDGE["Вход в POP — внешняя балансировка"]
-        L4["L4 IPVS + keepalived (пара, VRRP)"]
+        L4["L4: пара узлов, keepalived"]
         L7["L7 nginx (N+1)"]
     end
 
@@ -31,8 +31,8 @@ flowchart TD
         PG[("PostgreSQL")]
         RD[("Redis Cluster")]
         CH[("ClickHouse")]
-        OS[("Ceph S3")]
     end
+    OS[("Yandex Object Storage (S3)")]
 
     KAFKA["Kafka — события и задания (МСК)"]
     CDN["Yandex Cloud CDN"]

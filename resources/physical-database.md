@@ -10,7 +10,7 @@ flowchart TB
         MI["meeting_invitees\n─────────────\nPK: id\nFK: meeting_id, user_id (nullable)\nIDX: meeting_id, user_id"]
         MP["meeting_participants\n─────────────\nPK: (id, joined_at)\nFK: meeting_id, user_id (nullable)\nIDX: meeting_id\nIDX: (user_id, joined_at DESC)\nPARTITION BY RANGE(joined_at), по месяцам"]
         CM["chat_messages\n─────────────\nPK: (message_id, created_at)\nFK: meeting_id, sender_id (nullable)\nIDX: (meeting_id, created_at)\nPARTITION BY RANGE(created_at), по месяцам"]
-        RT["recordings / transcripts\n─────────────\nPK: recording_id / transcript_id\nFK: meeting_id\nIDX: meeting_id\nstorage_url → Ceph"]
+        RT["recordings / transcripts\n─────────────\nPK: recording_id / transcript_id\nFK: meeting_id\nIDX: meeting_id\nstorage_url → Object Storage"]
     end
 
     subgraph REDIS["Redis Cluster МСК — 3 master + 3 replica, слоты по ключу"]
@@ -24,10 +24,10 @@ flowchart TB
         QE["media_qos_events\n─────────────\nORDER BY (meeting_id, ts)\nPARTITION BY toYYYYMMDD(ts)\nшард: meeting_id · TTL 30 дней"]
     end
 
-    subgraph CEPH["Ceph RGW S3 — EC 8+3, 22 OSD"]
+    subgraph CEPH["Yandex Object Storage — managed S3, класс cold, lifecycle 12 мес"]
         direction TB
-        RB["recording_blobs\n─────────────\nbucket: recordings\nlifecycle 12 мес · ~2701 ТБ/год"]
-        TRB["transcript_blobs\n─────────────\nbucket: transcripts\nlifecycle 12 мес · ~0.96 ТБ/год"]
+        RB["recording_blobs\n─────────────\nbucket: recordings\n~2701 ТБ/год"]
+        TRB["transcript_blobs\n─────────────\nbucket: transcripts\n~0.96 ТБ/год"]
         AV["avatars\n─────────────\nbucket: avatars\norigin для CDN"]
     end
 
