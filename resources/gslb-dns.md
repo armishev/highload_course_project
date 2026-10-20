@@ -1,6 +1,33 @@
 # Исходный код диаграммы: Схема DNS-балансировки (раздел 3)
 
 ```mermaid
+%%{init: {
+    "theme": "base",
+    "layout": "elk",
+    "look": "classic",
+    "fontFamily": "Arial, sans-serif",
+    "themeVariables": {
+        "fontSize": "14px",
+        "primaryColor": "#f5f5f5",
+        "primaryTextColor": "#333333",
+        "primaryBorderColor": "#dddddd",
+        "lineColor": "#999999",
+        "secondaryColor": "#f5f5f5",
+        "tertiaryColor": "#fafafa",
+        "clusterBkg": "#fafafa",
+        "clusterBorder": "#e5e5e5",
+        "edgeLabelBackground": "#ffffff"
+    },
+    "flowchart": {
+        "curve": "linear",
+        "look": "classic",
+        "wrappingWidth": 200,
+        "nodeSpacing": 55,
+        "rankSpacing": 75,
+        "padding": 18
+    },
+    "themeCSS": ".node rect { rx: 12px; ry: 12px; stroke-width: 1px; } .cluster rect { rx: 14px; ry: 14px; stroke-width: 1px; } .edgeLabel .labelBkg { background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 3px 8px; } .edgeLabel .labelBkg:has(.edgeLabel:empty) { border: 0; padding: 0; } .edgeLabel p { margin: 0; } .flowchart-link { stroke-width: 1px; stroke-linecap: round; stroke-linejoin: round; }"
+}}%%
 flowchart TD
     U["Клиент Web / iOS / Android"]
     R["Рекурсивный DNS-резолвер"]
@@ -9,14 +36,15 @@ flowchart TD
 
     subgraph EDGE["Ближайший доступный POP"]
         VIP["Вход — L4 и L7 nginx"]
-        SIG["Signaling — ws.telemost.ru"]
+        SIG["Сигналинг LiveKit — ws.telemost.ru"]
         TURN["TURN — ретранслятор медиа"]
     end
 
     subgraph CONTROL["МСК — основной контур управления"]
         VIPM["Вход — L4 и L7 nginx"]
         API["Control API — api.telemost.ru"]
-        O["Оркестратор — размещение встреч"]
+        O["Оркестратор — управление встречами"]
+        RD["Redis — комнаты и состояние узлов"]
     end
 
     subgraph MEDIA["POP размещения встречи"]
@@ -34,10 +62,11 @@ flowchart TD
     U <-->|"3. WSS — служебные сообщения"| VIP
     VIP <--> SIG
 
-    SIG -->|"4. Найти или назначить SFU для встречи"| O
-    O -->|"5. Выбранный SFU"| SIG
+    API -->|"Команды управления"| O
+    O <-->|"LiveKit Server API"| SIG
+    SIG <-->|"4. Размещение комнаты и загрузка узлов"| RD
 
-    SIG <-->|"Согласование медиасоединения"| SFU
+    SIG <-->|"5. Согласование медиасоединения"| SFU
 
     U <-->|"6. Основной медиапуть — SRTP/UDP"| SFU
     U <-->|"6. Запасной медиапуть"| TURN
