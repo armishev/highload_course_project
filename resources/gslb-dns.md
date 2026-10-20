@@ -2,33 +2,46 @@
 
 ```mermaid
 flowchart TD
-    U["Клиент (Web / iOS / Android)"]
-    R["Рекурсивный DNS-резолвер<br/>(+EDNS Client Subnet)"]
-    G["Geo-DNS на PowerDNS<br/>(МСК + СПб)"]
-    CDN["Yandex Cloud CDN<br/>(static, VOD-записи)"]
+    U["Клиент Web / iOS / Android"]
+    R["Рекурсивный DNS-резолвер"]
+    G["Geo-DNS PowerDNS — МСК и СПб"]
+    CDN["CDN — файлы сайта и готовые записи"]
 
-    subgraph POP["Ближайший POP"]
-        VIP["Вход в POP<br/>L4 → L7 nginx"]
-        WS["ws.telemost.ru<br/>(Signaling)"]
-        SFU["SFU-ноды (медиаслой)"]
+    subgraph EDGE["Ближайший доступный POP"]
+        VIP["Вход — L4 и L7 nginx"]
+        SIG["Signaling — ws.telemost.ru"]
+        TURN["TURN — ретранслятор медиа"]
     end
 
-    subgraph MSK["МСК (control plane)"]
-        VIPM["Вход в МСК<br/>L4 → L7 nginx"]
-        API["api.telemost.ru<br/>(Control API)"]
-        O["Оркестратор<br/>(Application Based LB, least load)"]
+    subgraph CONTROL["МСК — основной контур управления"]
+        VIPM["Вход — L4 и L7 nginx"]
+        API["Control API — api.telemost.ru"]
+        O["Оркестратор — размещение встреч"]
     end
 
-    U -->|"1. DNS-запрос"| R
-    R --> G
-    G -.->|"2. ws → IP ближайшего POP, api → IP МСК"| U
-    U -->|"3. WSS на вход POP"| VIP
-    U -->|"3. HTTPS на вход МСК"| VIPM
-    VIPM --> API
-    VIP --> WS
-    WS -->|"4. запрос на медиа"| O
-    O -->|"5. SFU по загрузке"| WS
-    WS -->|"6. IP:port SFU клиенту"| U
-    U -.->|"7. медиа SRTP/UDP напрямую"| SFU
-    U -->|"static / VOD"| CDN
+    subgraph MEDIA["POP размещения встречи"]
+        SFU["SFU выбранной встречи"]
+    end
+
+    U -->|"1. Запрос адреса сервиса"| R
+    R -->|"Запрос при отсутствии ответа в кэше"| G
+    G -.->|"2. DNS-ответ"| R
+    R -.->|"Адрес сервиса"| U
+
+    U <-->|"3. HTTPS"| VIPM
+    VIPM <--> API
+
+    U <-->|"3. WSS — служебные сообщения"| VIP
+    VIP <--> SIG
+
+    SIG -->|"4. Найти или назначить SFU для встречи"| O
+    O -->|"5. Выбранный SFU"| SIG
+
+    SIG <-->|"Согласование медиасоединения"| SFU
+
+    U <-->|"6. Основной медиапуть — SRTP/UDP"| SFU
+    U <-->|"6. Запасной медиапуть"| TURN
+    TURN <-->|"Пересылка медиапакетов"| SFU
+
+    U <-->|"HTTPS — загрузка файлов и записей"| CDN
 ```
